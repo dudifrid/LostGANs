@@ -9,9 +9,11 @@ BatchNorm = SynchronizedBatchNorm2d
 
 
 class ResnetGenerator128(nn.Module):
-    def __init__(self, ch=64, z_dim=128, num_classes=10, output_dim=3):
+    def __init__(self, ch=64, z_dim=128, num_classes=10, output_dim=3, batch_size=32, num_obj=8):
         super(ResnetGenerator128, self).__init__()
         self.num_classes = num_classes
+        self.batch_size = batch_size
+        self.num_obj = num_obj
 
         self.label_embedding = nn.Embedding(num_classes, 180)
 
@@ -41,10 +43,25 @@ class ResnetGenerator128(nn.Module):
 
         self.mask_regress = MaskRegressNetv2(num_w)
         self.init_parameter()
+        
+        
+    
+    def de_embedding(self, embedded_y):
+        x = torch.arange(0,self.num_classes).long().cuda()
+        embedded_classes = self.label_embedding(x).cuda()
+        y = torch.zeros(self.batch_size, self.num_obj)
+        
+        for i in range(self.batch_size):
+            for j in range(self.num_obj):
+                y[i,j] = torch.argmin(torch.Tensor([torch.norm(embedded_classes[k] - embedded_y[i,j,:]) for k in range(self.num_classes)]))
+                
+        return y.long().cuda()
 
-    def forward(self, z, bbox, z_im=None, y=None):
+    def forward(self, z, bbox, z_im=None, embedded_y=None):
         b, o = z.size(0), z.size(1)
-        label_embedding = self.label_embedding(y)
+        label_embedding = embedded_y #self.label_embedding(y)
+        
+        y = self.de_embedding(embedded_y)
 
         z = z.view(b * o, -1)
         label_embedding = label_embedding.view(b * o, -1)

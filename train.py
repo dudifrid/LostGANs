@@ -22,7 +22,7 @@ from utils.logger import setup_logger
 
 def get_dataset(dataset, img_size):
     if dataset == "coco":
-        data = CocoSceneGraphDataset(image_dir='./datasets/coco/train2017/',
+        data = CocoSceneGraphDataset(image_dir='./datasets/coco/images/train2017/',
                                         instances_json='./datasets/coco/annotations/instances_train2017.json',
                                         stuff_json='./datasets/coco/annotations/stuff_train2017.json',
                                         stuff_only=True, image_size=(img_size, img_size), left_right_flip=True)
@@ -47,7 +47,7 @@ def main(args):
 
     dataloader = torch.utils.data.DataLoader(
         train_data, batch_size=args.batch_size,
-        drop_last=True, shuffle=True, num_workers=8)
+        drop_last=True, shuffle=True, num_workers=4)
 
     # Load model
     netG = ResnetGenerator128(num_classes=num_classes, output_dim=3).cuda()
@@ -83,8 +83,8 @@ def main(args):
     writer = SummaryWriter(os.path.join(args.out_path, 'log'))
 
     logger = setup_logger("lostGAN", args.out_path, 0)
-    logger.info(netG)
-    logger.info(netD)
+#     logger.info(netG)
+#     logger.info(netD)
 
     start_time = time.time()
     vgg_loss = VGGLoss()
@@ -98,14 +98,26 @@ def main(args):
             real_images, label, bbox = data
             real_images, label, bbox = real_images.cuda(), label.long().cuda().unsqueeze(-1), bbox.float()
 
+
             # update D network
             netD.zero_grad()
             real_images, label = real_images.cuda(), label.long().cuda()
+            
+#             print(real_images.shape)
+#             import matplotlib.pyplot as plt
+#             import cv2
+# #             x = cv2.imread('./samples/coco/sample_80.jpg')
+#             real_to_print = real_images[0].cpu().detach().numpy().transpose(1, 2, 0)*0.5+0.5
+#             print(real_images.shape)
+#             plt.imshow(real_to_print)
+# #             plt.imshow(real_images.cpu().data[0:,:,:,:])
+#             return
             d_out_real, d_out_robj = netD(real_images, bbox, label)
             d_loss_real = torch.nn.ReLU()(1.0 - d_out_real).mean()
             d_loss_robj = torch.nn.ReLU()(1.0 - d_out_robj).mean()
 
             z = torch.randn(real_images.size(0), num_obj, z_dim).cuda()
+            print(label.squeeze(dim=-1).shape)
             fake_images = netG(z, bbox, y=label.squeeze(dim=-1))
             d_out_fake, d_out_fobj = netD(fake_images.detach(), bbox, label)
             d_loss_fake = torch.nn.ReLU()(1.0 + d_out_fake).mean()

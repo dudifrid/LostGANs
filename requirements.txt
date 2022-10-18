@@ -6,3 +6,4 @@ tensorboardX
 scipy
 Cython
 pycocotools
+h5py
