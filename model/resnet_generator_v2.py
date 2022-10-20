@@ -47,22 +47,33 @@ class ResnetGenerator128(nn.Module):
         
     
     def de_embedding(self, embedded_y):
+        unsqueezed_input = embedded_y.shape[0] == 1
+        my_emb_y = embedded_y.squeeze(0)
+            
         x = torch.arange(0,self.num_classes).long().cuda()
         embedded_classes = self.label_embedding(x).cuda()
-        y = torch.zeros(self.batch_size, self.num_obj)
+        y = torch.zeros(self.num_obj)
         
-        for i in range(self.batch_size):
-            for j in range(self.num_obj):
-                y[i,j] = torch.argmin(torch.Tensor([torch.norm(embedded_classes[k] - embedded_y[i,j,:]) for k in range(self.num_classes)]))
-                
-        return y.long().cuda()
+        for i in range(self.num_obj):
+            y[i] = torch.argmin(torch.Tensor([torch.norm(embedded_classes[k] - my_emb_y[i,:]) for k in range(self.num_classes)]))
+        
+        
+        if not unsqueezed_input:
+            return y.long().cuda()
+        else:
+            return y.long().cuda().unsqueeze(0)
 
-    def forward(self, z, bbox, z_im=None, embedded_y=None):
+    def forward(self, z, bbox, z_im=None, y= None, embedded_y=None):
         b, o = z.size(0), z.size(1)
-        label_embedding = embedded_y #self.label_embedding(y)
+        if type(y) == type(None):
+            y = self.de_embedding(embedded_y)
         
-        y = self.de_embedding(embedded_y)
-
+        if type(embedded_y) == type(None):
+            label_embedding = self.label_embedding(y)
+        else:
+            label_embedding = embedded_y.clone()
+            
+        
         z = z.view(b * o, -1)
         label_embedding = label_embedding.view(b * o, -1)
 
